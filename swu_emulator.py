@@ -10,6 +10,8 @@ import fcntl
 import subprocess
 import multiprocessing
 import requests
+import json
+import threading
 
 from optparse import OptionParser
 from binascii import hexlify, unhexlify
@@ -26,8 +28,6 @@ from smartcard.System import readers
 from smartcard.util import toHexString,toBytes
 
 from CryptoMobile.Milenage import Milenage
-
-from card.USIM import *
 
 requests.packages.urllib3.disable_warnings() 
 
@@ -1529,7 +1529,7 @@ class swu():
         if self.ipv6_address_list != []:
             ipv6_address_prefix = ':'.join(self.ipv6_address_list[0].split(':')[0:4])
             ipv6_address_identifier = 'fe80::' + ':'.join(self.ipv6_address_list[0].split(':')[4:8])
-            self.exec_in_netns("ip -6 addr add " + ipv6_address_identifier + "/64 dev " + self.tun_device)
+            self.exec_in_netns("ip -6 addr add " + self.ipv6_address_list[0] + "/64 dev " + self.tun_device)
             self.exec_in_netns("route -A inet6 add ::/1 dev " + self.tun_device)
             self.exec_in_netns("route -A inet6 add 8000::/1 dev " + self.tun_device)
         
@@ -2721,6 +2721,19 @@ class swu():
                     self.spi_resp_child = i[1][2]
                     if protocol_id == ESP:
                         self.set_sa_negotiated_child(proposal)
+                        with open("../session-data.json", "w") as fobj:
+                            vals = {
+                                
+                                "spi-c":str(int(toHex(self.spi_resp_child),16)),
+                                "spi-s":str(int(toHex(self.spi_init_child),16)),
+                                "mnc": self.mnc,
+                                "mcc": self.mcc
+                            }
+                            if len(self.ipv6_address_list) > 0:
+                                vals["client-ip"] = self.ipv6_address_list[0]
+                            if len(self.pcscfv6_address_list) > 0:
+                                vals["p-cscf"] = self.pcscfv6_address_list[0]                                         
+                            fobj.write(json.dumps(vals))
                         print('IPSEC RESP SPI',toHex(self.spi_resp_child))
                         print('IPSEC INIT SPI',toHex(self.spi_init_child))
                     else:
